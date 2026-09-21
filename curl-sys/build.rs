@@ -331,8 +331,17 @@ fn main() {
             // ./vcpkg.exe integrate install
             // ./vcpkg.exe install openssl:x64-windows-static-md
             // ```
+            // `find_package` emits `rustc-link-search` + `rustc-link-lib`
+            // for the linker, but the returned `Library`'s `include_paths`
+            // still have to be threaded into `cc-rs` explicitly.
             #[cfg(target_env = "msvc")]
-            vcpkg::Config::new().find_package("openssl").ok();
+            if let Ok(lib) = vcpkg::Config::new().find_package("openssl") {
+                for path in &lib.include_paths {
+                    cfg.include(path);
+                }
+            }
+            // OpenSSL static libs reference MessageBoxA (OPENSSL_showfatal).
+            println!("cargo:rustc-link-lib=user32");
             #[cfg(target_env = "msvc")]
             vcpkg::Config::new().find_package("zlib").ok();
         } else {
