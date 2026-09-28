@@ -80,9 +80,24 @@ jobs:
       run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
       shell: bash
     - run: rustup target add ${{ matrix.target }}
+    - name: Compute vcpkg cache entries
+      if: matrix.static_ssl == 'windows'
+      id: vcpkg-cache
+      shell: bash
+      run: |
+        echo "path=${{ runner.temp }}/vcpkg-cache" >> "$GITHUB_OUTPUT"
+        echo "key=vcpkg-${{ matrix.target }}-${{ hashFiles('vcpkg.json') }}-$ImageVersion" >> "$GITHUB_OUTPUT"
+    - name: Restore vcpkg binary cache (files backend)
+      if: matrix.static_ssl == 'windows'
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.vcpkg-cache.outputs.path }}
+        key: ${{ steps.vcpkg-cache.outputs.key }}
     - name: Install vcpkg dependencies (for windows-static-ssl)
       if: matrix.static_ssl == 'windows'
       shell: bash
+      env:
+        VCPKG_BINARY_SOURCES: "clear;files,${{ steps.vcpkg-cache.outputs.path }},readwrite"
       run: |
         vcpkg install --triplet=x64-windows-static-md \
           --x-install-root="$VCPKG_INSTALLATION_ROOT/installed"
