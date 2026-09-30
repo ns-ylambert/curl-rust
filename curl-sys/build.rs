@@ -305,12 +305,6 @@ fn main() {
         cfg.include(path);
     }
 
-    if cfg!(feature = "spnego") {
-        cfg.define("USE_SPNEGO", None)
-            .file("curl/lib/http_negotiate.c")
-            .file("curl/lib/vauth/vauth.c");
-    }
-
     // Configure TLS backend. Since Cargo does not support mutually exclusive
     // features, make sure we only compile one vtls.
     if cfg!(feature = "rustls") {
@@ -345,12 +339,9 @@ fn main() {
             // Please see definition of USE_SPNEGO in curl_setup.h for more info.
             cfg.define("USE_WINDOWS_SSPI", None)
                 .define("USE_SCHANNEL", None)
-                .file("curl/lib/http_negotiate.c")
                 .file("curl/lib/curl_sspi.c")
                 .file("curl/lib/socks_sspi.c")
                 .file("curl/lib/vauth/krb5_sspi.c")
-                .file("curl/lib/vauth/spnego_sspi.c")
-                .file("curl/lib/vauth/vauth.c")
                 .file("curl/lib/vtls/schannel.c")
                 .file("curl/lib/vtls/schannel_verify.c")
                 .file("curl/lib/vtls/x509asn1.c");
@@ -365,6 +356,25 @@ fn main() {
         }
     }
 
+    // `USE_WINDOWS_SSPI` unconditionally triggers `USE_SPNEGO` in
+    // `curl_setup.h`, which causes `http.c` (always compiled) to reference
+    // symbols from `http_negotiate.c` and `spnego_sspi.c`. Those files must
+    // therefore be compiled whenever `windows_sspi` is true, regardless of
+    // whether the `spnego` cargo feature was explicitly requested.
+    let windows_sspi = windows
+        && cfg!(feature = "ssl")
+        && !cfg!(any(feature = "rustls", feature = "windows-static-ssl"));
+
+    if !windows && cfg!(feature = "spnego") {
+        cfg.define("USE_SPNEGO", None);
+    }
+    if windows_sspi || cfg!(feature = "spnego") {
+        cfg.file("curl/lib/http_negotiate.c");
+    }
+    if windows_sspi {
+        cfg.file("curl/lib/vauth/spnego_sspi.c");
+    }
+
     // Configure platform-specific details.
     if windows {
         cfg.define("WIN32", None)
@@ -377,10 +387,6 @@ fn main() {
             .file("curl/lib/curlx/multibyte.c")
             .file("curl/lib/curlx/version_win32.c")
             .file("curl/lib/curlx/winapi.c");
-
-        if cfg!(feature = "spnego") {
-            cfg.file("curl/lib/vauth/spnego_sspi.c");
-        }
     } else {
         cfg.define("RECV_TYPE_ARG1", "int")
             .define("HAVE_PTHREAD_H", None)
