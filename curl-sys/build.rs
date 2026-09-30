@@ -337,11 +337,7 @@ fn main() {
         if windows {
             // For windows, spnego feature is auto on in case ssl feature is on.
             // Please see definition of USE_SPNEGO in curl_setup.h for more info.
-            cfg.define("USE_WINDOWS_SSPI", None)
-                .define("USE_SCHANNEL", None)
-                .file("curl/lib/curl_sspi.c")
-                .file("curl/lib/socks_sspi.c")
-                .file("curl/lib/vauth/krb5_sspi.c")
+            cfg.define("USE_SCHANNEL", None)
                 .file("curl/lib/vtls/schannel.c")
                 .file("curl/lib/vtls/schannel_verify.c")
                 .file("curl/lib/vtls/x509asn1.c");
@@ -356,14 +352,19 @@ fn main() {
         }
     }
 
+    // Compile Windows SSPI alongside any TLS backend so libcurl's integrated
+    // Windows authentication (NTLM/Negotiate) stays available.
     // `USE_WINDOWS_SSPI` unconditionally triggers `USE_SPNEGO` in
     // `curl_setup.h`, which causes `http.c` (always compiled) to reference
     // symbols from `http_negotiate.c` and `spnego_sspi.c`. Those files must
     // therefore be compiled whenever `windows_sspi` is true, regardless of
     // whether the `spnego` cargo feature was explicitly requested.
     let windows_sspi = windows
-        && cfg!(feature = "ssl")
-        && !cfg!(any(feature = "rustls", feature = "windows-static-ssl"));
+        && cfg!(any(
+            feature = "ssl",
+            feature = "rustls",
+            feature = "windows-static-ssl"
+        ));
 
     if !windows && cfg!(feature = "spnego") {
         cfg.define("USE_SPNEGO", None);
@@ -372,7 +373,11 @@ fn main() {
         cfg.file("curl/lib/http_negotiate.c");
     }
     if windows_sspi {
-        cfg.file("curl/lib/vauth/spnego_sspi.c");
+        cfg.define("USE_WINDOWS_SSPI", None)
+            .file("curl/lib/curl_sspi.c")
+            .file("curl/lib/socks_sspi.c")
+            .file("curl/lib/vauth/krb5_sspi.c")
+            .file("curl/lib/vauth/spnego_sspi.c");
     }
 
     // Configure platform-specific details.
