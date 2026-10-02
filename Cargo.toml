@@ -22,7 +22,7 @@ socket2 = "0.6.0"
 openssl-sys = { workspace = true, optional = true }
 openssl-probe = { version = "0.1.2", optional = true }
 
-[target.'cfg(target_env = "msvc")'.dependencies]
+[target.'cfg(windows)'.dependencies]
 schannel = { version = "0.1.13", optional = true }
 windows-sys = { workspace = true, optional = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_Security_Cryptography"] }
 
